@@ -5,10 +5,12 @@ import {
     BinaryExpression, MemberExpression, IndexerExpression, FuncExpression,
     CallExpression, TernaryExpression
 } from 'jokenizer';
-import { IQueryPart, QueryParameter, IRequestProvider, QueryPart, QueryFunc } from "jinqu";
+import { IQueryPart, QueryParameter, IRequestProvider, QueryPart, QueryFunc, AjaxFuncs } from "jinqu";
 import { LinqQuery, QueryOptions, LinqQueryProvider } from "linquest";
 
-const supportedPrms = [QueryFunc.where, QueryFunc.orderBy, QueryFunc.select, QueryFunc.skip, QueryFunc.take, QueryFunc.inlineCount];
+const orderFuncs = [QueryFunc.orderBy, QueryFunc.orderByDescending, QueryFunc.thenBy, QueryFunc.thenByDescending];
+const supportedFuncs = [QueryFunc.where, QueryFunc.select, QueryFunc.skip, QueryFunc.take, QueryFunc.inlineCount]
+    .concat(orderFuncs);
 const mathFuncs = ['round', 'floor', 'ceiling'];
 
 export class ODataQueryProvider<TOptions extends QueryOptions> extends LinqQueryProvider<TOptions> {
@@ -23,8 +25,61 @@ export class ODataQueryProvider<TOptions extends QueryOptions> extends LinqQuery
         return new LinqQuery<T, TOptions>(this, parts);
     }
 
+    executeAsync<T = any, TResult = T[]>(parts: IQueryPart[]): PromiseLike<TResult> {
+        const params: IQueryPart[] = [];
+        const options: TOptions[] = [];
+
+        for (let part of parts) {
+            if (part.type === AjaxFuncs.options) {
+                const o: TOptions = part.args[0].literal;
+                options.push(o);
+
+                if (o && o.pascalize != null) {
+                    this.pascalize = o.pascalize;
+                }
+            }
+            else if (part.type === QueryFunc.toArray) continue;
+            else {
+                params.push(part);
+            }
+        }
+
+        const queryParams: QueryParameter[] = [];
+        let os: IQueryPart[] = [];
+
+        const that = this;
+        function handleOrders() {
+            if (os.length) {
+                queryParams.push({
+                    key: '$orderby',
+                    value: os.map(o => {
+                        that.rootLambda = true;
+                        const ord = that.handlePart(o).value;
+                        return o.type.endsWith('Descending') ? ord + ' desc' : ord;
+                    }).join(', ')
+                });
+                os = [];
+            }
+        }
+
+        for (let p of params) {
+            if (~orderFuncs.indexOf(p.type)) {
+                os.push(p);
+                continue;
+            }
+
+            handleOrders();
+
+            this.rootLambda = true;
+            queryParams.push(this.handlePart(p));
+        }
+        handleOrders();
+
+        return this.requestProvider.request<TResult>(queryParams, options);
+    }
+
     handlePart(part: IQueryPart): QueryParameter {
-        if (!~supportedPrms.indexOf(part.type))
+        if (!~supportedFuncs.indexOf(part.type))
             throw new Error(`${part.type} is not supported.`);
 
         if (part.type === QueryFunc.inlineCount) {
@@ -35,7 +90,8 @@ export class ODataQueryProvider<TOptions extends QueryOptions> extends LinqQuery
         }
 
         const retVal = super.handlePart(part);
-        retVal.key = part.type === QueryFunc.where ? '$filter' : retVal.key.toLowerCase();
+        if (part.type === QueryFunc.where)
+            retVal.key = part.type === QueryFunc.where ? '$filter' : retVal.key.toLowerCase();
 
         return retVal;
     }
