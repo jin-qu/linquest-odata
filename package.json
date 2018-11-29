@@ -1,6 +1,6 @@
 {
   "name": "linquest-odata",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.2",
   "description": "Linquest OData implementation",
   "main": "dist/index.js",
   "keywords": [
