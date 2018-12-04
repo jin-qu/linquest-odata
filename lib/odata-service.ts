@@ -9,7 +9,10 @@ export class ODataService extends LinqService {
     }
 
     request<TResult>(params: QueryParameter[], options: QueryOptions[]): PromiseLike<TResult> {
-        return super.request(params, options).then(d => d && d['value']);
+        return super.request(params, options).then(d => {
+            const v = d && d['value'];
+            return v != null ? v : d;
+        });
     }
 
     createQuery<T>(url: string) {
