@@ -1,3 +1,8 @@
+# !!! DEPRECATED !!!
+
+Please refer to [jinqu-odata](https://github.com/jin-qu/jinqu-odata) for new implementation.
+
+
 # linquest-odata - Linquest OData implementation
 
 [![Build Status](https://travis-ci.org/jin-qu/linquest-odata.svg?branch=master)](https://travis-ci.org/jin-qu/linquest-odata)
